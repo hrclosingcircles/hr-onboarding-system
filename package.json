@@ -1,18 +1,15 @@
 {
-  "name": "hr-system",
+  "name": "hr-onboarding-system",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "HR Onboarding Backend",
+  "main": "server.js",
+  "type": "commonjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs"
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6"
+  }
 }
-server.js
-"scripts": {
-  "start": "node server.js"
-}
-
