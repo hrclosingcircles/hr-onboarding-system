@@ -10,19 +10,6 @@ const dbPath = path.join(__dirname, "../hr.db");
 const db = new sqlite3.Database(dbPath);
 
 // ==============================
-// BASE FRONTEND URL
-// ==============================
-
-// If deployed on Render, use FRONTEND_URL
-// Otherwise fallback to localhost (for local dev only)
-const BASE_URL =
-  process.env.FRONTEND_URL && process.env.FRONTEND_URL !== ""
-    ? process.env.FRONTEND_URL
-    : "http://localhost:3000";
-
-console.log("Using FRONTEND_URL:", BASE_URL);
-
-// ==============================
 // TEST ROUTE
 // ==============================
 router.get("/test", (req, res) => {
@@ -34,11 +21,7 @@ router.get("/test", (req, res) => {
 // ==============================
 router.get("/", (req, res) => {
   db.all("SELECT * FROM onboarding ORDER BY id DESC", [], (err, rows) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).json({ success: false });
-    }
-
+    if (err) return res.status(500).json({ success: false });
     res.json({ success: true, data: rows });
   });
 });
@@ -75,6 +58,15 @@ router.post("/create", (req, res) => {
 
   const offer_id =
     "OFF-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+  // 🔥 READ ENV VARIABLE AT RUNTIME
+  const BASE_URL =
+    process.env.FRONTEND_URL && process.env.FRONTEND_URL !== ""
+      ? process.env.FRONTEND_URL
+      : "http://localhost:3000";
+
+  console.log("Runtime FRONTEND_URL:", process.env.FRONTEND_URL);
+  console.log("Generated BASE_URL:", BASE_URL);
 
   const sql = `
     INSERT INTO onboarding
@@ -136,17 +128,9 @@ router.get("/:offer_id", (req, res) => {
     "SELECT * FROM onboarding WHERE offer_id = ?",
     [offer_id],
     (err, row) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ success: false });
-      }
-
-      if (!row) {
-        return res.status(404).json({
-          success: false,
-          message: "Offer not found",
-        });
-      }
+      if (err) return res.status(500).json({ success: false });
+      if (!row)
+        return res.status(404).json({ success: false, message: "Not found" });
 
       res.json(row);
     }
