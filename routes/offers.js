@@ -1,217 +1,273 @@
 const express = require("express");
 const router = express.Router();
+const sqlite3 = require("sqlite3").verbose();
+const path = require("path");
+const multer = require("multer");
+const fs = require("fs");
+
+// ==============================
+// DB
+// ==============================
+const dbPath = path.join(__dirname, "../hr.db");
+const db = new sqlite3.Database(dbPath);
+
+// ==============================
+// Upload Folder
+// ==============================
+const uploadDir = "uploads";
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
+  }
+});
+
+const upload = multer({ storage });
 
 // ==============================
 // TEST ROUTE
 // ==============================
 router.get("/test", (req, res) => {
-  res.json({ message: "Offers route working (PostgreSQL)" });
+  res.json({ message: "Offers route working" });
 });
-
 
 // ==============================
 // GET ALL OFFERS
 // ==============================
-router.get("/", async (req, res) => {
-  try {
-    const result = await req.pool.query(
-      "SELECT * FROM onboarding ORDER BY id DESC"
-    );
+router.get("/", (req, res) => {
 
-    res.json({
-      success: true,
-      data: result.rows,
-    });
+  db.all(
+    "SELECT * FROM onboarding ORDER BY id DESC",
+    [],
+    (err, rows) => {
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
-  }
+      if (err) {
+        return res.status(500).json({ success: false });
+      }
+
+      res.json({
+        success: true,
+        data: rows
+      });
+
+    }
+  );
+
 });
-
 
 // ==============================
 // CREATE OFFER
 // ==============================
-router.post("/create", async (req, res) => {
-  try {
-    const {
+router.post("/create", (req, res) => {
+
+  const {
+    candidate_name,
+    email,
+    mobile,
+    designation,
+    salary,
+    work_location,
+    date_of_joining,
+    employment_type
+  } = req.body;
+
+  const offer_id =
+    "OFF-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+  const BASE_URL =
+    process.env.FRONTEND_URL ||
+    "http://localhost:3000";
+
+  const sql = `
+  INSERT INTO onboarding
+  (
+  offer_id,
+  candidate_name,
+  designation,
+  salary,
+  work_location,
+  date_of_joining,
+  employment_type,
+  email,
+  mobile,
+  status
+  )
+  VALUES (?,?,?,?,?,?,?,?,?,?)
+  `;
+
+  db.run(
+    sql,
+    [
+      offer_id,
       candidate_name,
-      email,
-      mobile,
       designation,
       salary,
       work_location,
       date_of_joining,
-      employment_type,
-    } = req.body;
+      employment_type || "Full Time",
+      email,
+      mobile,
+      "Pending"
+    ],
+    function (err) {
 
-    if (
-      !candidate_name ||
-      !email ||
-      !mobile ||
-      !designation ||
-      !salary ||
-      !work_location ||
-      !date_of_joining
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "All fields are required",
+      if (err) {
+        return res.status(500).json({
+          success: false
+        });
+      }
+
+      res.json({
+        success: true,
+        offer_id,
+        onboarding_link: `${BASE_URL}/onboarding/${offer_id}`
       });
+
     }
+  );
 
-    const offer_id =
-      "OFF-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-
-    const BASE_URL =
-      process.env.FRONTEND_URL || "http://localhost:3000";
-
-    await req.pool.query(
-      `
-      INSERT INTO onboarding
-      (
-        offer_id,
-        candidate_name,
-        designation,
-        salary,
-        work_location,
-        date_of_joining,
-        employment_type,
-        email,
-        mobile,
-        status
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      `,
-      [
-        offer_id,
-        candidate_name,
-        designation,
-        salary,
-        work_location,
-        date_of_joining,
-        employment_type || "Full Time",
-        email,
-        mobile,
-        "Pending",
-      ]
-    );
-
-    res.json({
-      success: true,
-      message: "Offer Created Successfully",
-      offer_id,
-      onboarding_link: `${BASE_URL}/onboarding/${offer_id}`,
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      message: "Database insert failed",
-    });
-  }
 });
-
 
 // ==============================
 // GET SINGLE OFFER
 // ==============================
-router.get("/:offer_id", async (req, res) => {
-  try {
+router.get("/:offer_id", (req, res) => {
 
-    const { offer_id } = req.params;
+  const { offer_id } = req.params;
 
-    const result = await req.pool.query(
-      "SELECT * FROM onboarding WHERE offer_id=$1",
-      [offer_id]
-    );
+  db.get(
+    "SELECT * FROM onboarding WHERE offer_id=?",
+    [offer_id],
+    (err, row) => {
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Offer not found",
-      });
+      if (err) {
+        return res.status(500).json({ success: false });
+      }
+
+      if (!row) {
+        return res.status(404).json({ success: false });
+      }
+
+      res.json(row);
+
     }
+  );
 
-    res.json(result.rows[0]);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
-  }
 });
-
 
 // ==============================
 // SUBMIT ONBOARDING
 // ==============================
-router.post("/:offer_id/submit", async (req, res) => {
-  try {
+router.post(
+  "/:offer_id/submit",
+  upload.fields([
+    { name: "aadhaar" },
+    { name: "pan" },
+    { name: "bank_proof" },
+    { name: "photo" },
+    { name: "signedAppointment" }
+  ]),
+  (req, res) => {
 
     const { offer_id } = req.params;
 
-    const { joiningDetails, signature } = req.body;
+    const joining = JSON.parse(req.body.joiningDetails);
 
-    const details = JSON.parse(joiningDetails);
+    const signature = req.body.signature;
 
-    await req.pool.query(
-      `
-      UPDATE onboarding SET
-      father_name=$1,
-      dob=$2,
-      gender=$3,
-      address=$4,
-      city=$5,
-      state=$6,
-      pincode=$7,
-      bank_name=$8,
-      account_number=$9,
-      ifsc=$10,
-      emergency_name=$11,
-      emergency_contact=$12,
-      qualification=$13,
-      university=$14,
-      passing_year=$15,
-      signature=$16,
-      status='Completed'
-      WHERE offer_id=$17
-      `,
+    const aadhaar =
+      req.files["aadhaar"]?.[0]?.filename || null;
+
+    const pan =
+      req.files["pan"]?.[0]?.filename || null;
+
+    const bank_proof =
+      req.files["bank_proof"]?.[0]?.filename || null;
+
+    const photo =
+      req.files["photo"]?.[0]?.filename || null;
+
+    const signed_appointment =
+      req.files["signedAppointment"]?.[0]?.filename || null;
+
+    const sql = `
+    UPDATE onboarding SET
+    father_name=?,
+    dob=?,
+    gender=?,
+    address=?,
+    city=?,
+    state=?,
+    pincode=?,
+    bank_name=?,
+    account_number=?,
+    ifsc=?,
+    emergency_name=?,
+    emergency_contact=?,
+    qualification=?,
+    university=?,
+    passing_year=?,
+    signature=?,
+    aadhaar=?,
+    pan=?,
+    bank_proof=?,
+    photo=?,
+    signed_appointment=?,
+    status='Completed'
+    WHERE offer_id=?
+    `;
+
+    db.run(
+      sql,
       [
-        details.father_name,
-        details.dob,
-        details.gender,
-        details.address,
-        details.city,
-        details.state,
-        details.pincode,
-        details.bank_name,
-        details.account_number,
-        details.ifsc,
-        details.emergency_name,
-        details.emergency_contact,
-        details.qualification,
-        details.university,
-        details.passing_year,
+        joining.father_name,
+        joining.dob,
+        joining.gender,
+        joining.address,
+        joining.city,
+        joining.state,
+        joining.pincode,
+        joining.bank_name,
+        joining.account_number,
+        joining.ifsc,
+        joining.emergency_name,
+        joining.emergency_contact,
+        joining.qualification,
+        joining.university,
+        joining.passing_year,
         signature,
-        offer_id,
-      ]
+        aadhaar,
+        pan,
+        bank_proof,
+        photo,
+        signed_appointment,
+        offer_id
+      ],
+      function (err) {
+
+        if (err) {
+          console.log(err);
+          return res.status(500).json({
+            success: false
+          });
+        }
+
+        res.json({
+          success: true,
+          message: "Onboarding submitted"
+        });
+
+      }
     );
 
-    res.json({
-      success: true,
-      message: "Onboarding submitted successfully",
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      message: "Submission failed",
-    });
   }
-});
-
+);
 
 module.exports = router;
