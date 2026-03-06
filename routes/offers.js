@@ -21,7 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // ==============================
-// FILE STORAGE
+// MULTER STORAGE
 // ==============================
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -53,9 +53,7 @@ router.get("/", (req, res) => {
 
       if (err) {
         console.log(err);
-        return res.status(500).json({
-          success: false
-        });
+        return res.status(500).json({ success: false });
       }
 
       res.json({
@@ -88,8 +86,7 @@ router.post("/create", (req, res) => {
     "OFF-" + Math.random().toString(36).substring(2, 10).toUpperCase();
 
   const BASE_URL =
-    process.env.FRONTEND_URL ||
-    "http://localhost:3000";
+    process.env.FRONTEND_URL || "http://localhost:3000";
 
   const sql = `
   INSERT INTO onboarding
@@ -126,9 +123,7 @@ router.post("/create", (req, res) => {
 
       if (err) {
         console.log(err);
-        return res.status(500).json({
-          success: false
-        });
+        return res.status(500).json({ success: false });
       }
 
       res.json({
@@ -156,9 +151,7 @@ router.get("/:offer_id", (req, res) => {
 
       if (err) {
         console.log(err);
-        return res.status(500).json({
-          success: false
-        });
+        return res.status(500).json({ success: false });
       }
 
       if (!row) {
@@ -193,20 +186,22 @@ router.post(
 
     let joining = {};
 
-    try {
-      joining = JSON.parse(req.body.joiningDetails || "{}");
-    } catch {
-      joining = req.body;
+    if (req.body.joiningDetails) {
+      try {
+        joining = JSON.parse(req.body.joiningDetails);
+      } catch (err) {
+        console.log("Joining parse error");
+      }
     }
 
-    const signature = req.body.signature || null;
+    const signature = req.body.signature || "";
 
-    const aadhaar = req.files?.aadhaar?.[0]?.filename || null;
-    const pan = req.files?.pan?.[0]?.filename || null;
-    const bank_proof = req.files?.bank_proof?.[0]?.filename || null;
-    const photo = req.files?.photo?.[0]?.filename || null;
+    const aadhaar = req.files?.aadhaar?.[0]?.filename || "";
+    const pan = req.files?.pan?.[0]?.filename || "";
+    const bank_proof = req.files?.bank_proof?.[0]?.filename || "";
+    const photo = req.files?.photo?.[0]?.filename || "";
     const signed_appointment =
-      req.files?.signedAppointment?.[0]?.filename || null;
+      req.files?.signedAppointment?.[0]?.filename || "";
 
     const sql = `
     UPDATE onboarding SET
@@ -238,21 +233,21 @@ router.post(
     db.run(
       sql,
       [
-        joining.father_name,
-        joining.dob,
-        joining.gender,
-        joining.address,
-        joining.city,
-        joining.state,
-        joining.pincode,
-        joining.bank_name,
-        joining.account_number,
-        joining.ifsc,
-        joining.emergency_name,
-        joining.emergency_contact,
-        joining.qualification,
-        joining.university,
-        joining.passing_year,
+        joining.father_name || "",
+        joining.dob || "",
+        joining.gender || "",
+        joining.address || "",
+        joining.city || "",
+        joining.state || "",
+        joining.pincode || "",
+        joining.bank_name || "",
+        joining.account_number || "",
+        joining.ifsc || "",
+        joining.emergency_name || "",
+        joining.emergency_contact || "",
+        joining.qualification || "",
+        joining.university || "",
+        joining.passing_year || "",
         signature,
         aadhaar,
         pan,
@@ -264,7 +259,7 @@ router.post(
       function (err) {
 
         if (err) {
-          console.log(err);
+          console.log("DB Update Error:", err);
           return res.status(500).json({
             success: false,
             message: "Database update failed"
