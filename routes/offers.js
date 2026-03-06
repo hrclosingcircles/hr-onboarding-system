@@ -6,22 +6,22 @@ const multer = require("multer");
 const fs = require("fs");
 
 // ==============================
-// DB
+// DATABASE
 // ==============================
 const dbPath = path.join(__dirname, "../hr.db");
 const db = new sqlite3.Database(dbPath);
 
 // ==============================
-// Upload Folder
+// UPLOAD FOLDER
 // ==============================
-const uploadDir = path.join(__dirname, "../uploads");
+const uploadDir = "uploads";
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
 // ==============================
-// Multer Setup
+// FILE STORAGE
 // ==============================
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -53,7 +53,9 @@ router.get("/", (req, res) => {
 
       if (err) {
         console.log(err);
-        return res.status(500).json({ success: false });
+        return res.status(500).json({
+          success: false
+        });
       }
 
       res.json({
@@ -124,7 +126,9 @@ router.post("/create", (req, res) => {
 
       if (err) {
         console.log(err);
-        return res.status(500).json({ success: false });
+        return res.status(500).json({
+          success: false
+        });
       }
 
       res.json({
@@ -152,11 +156,16 @@ router.get("/:offer_id", (req, res) => {
 
       if (err) {
         console.log(err);
-        return res.status(500).json({ success: false });
+        return res.status(500).json({
+          success: false
+        });
       }
 
       if (!row) {
-        return res.status(404).json({ success: false });
+        return res.status(404).json({
+          success: false,
+          message: "Offer not found"
+        });
       }
 
       res.json(row);
@@ -182,14 +191,22 @@ router.post(
 
     const { offer_id } = req.params;
 
-    const joining = JSON.parse(req.body.joiningDetails || "{}");
+    let joining = {};
+
+    try {
+      joining = JSON.parse(req.body.joiningDetails || "{}");
+    } catch {
+      joining = req.body;
+    }
+
     const signature = req.body.signature || null;
 
     const aadhaar = req.files?.aadhaar?.[0]?.filename || null;
     const pan = req.files?.pan?.[0]?.filename || null;
     const bank_proof = req.files?.bank_proof?.[0]?.filename || null;
     const photo = req.files?.photo?.[0]?.filename || null;
-    const signed_appointment = req.files?.signedAppointment?.[0]?.filename || null;
+    const signed_appointment =
+      req.files?.signedAppointment?.[0]?.filename || null;
 
     const sql = `
     UPDATE onboarding SET
@@ -248,7 +265,10 @@ router.post(
 
         if (err) {
           console.log(err);
-          return res.status(500).json({ success: false });
+          return res.status(500).json({
+            success: false,
+            message: "Database update failed"
+          });
         }
 
         res.json({
