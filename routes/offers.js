@@ -14,12 +14,15 @@ const db = new sqlite3.Database(dbPath);
 // ==============================
 // Upload Folder
 // ==============================
-const uploadDir = "uploads";
+const uploadDir = path.join(__dirname, "../uploads");
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
+// ==============================
+// Multer Setup
+// ==============================
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir);
@@ -49,6 +52,7 @@ router.get("/", (req, res) => {
     (err, rows) => {
 
       if (err) {
+        console.log(err);
         return res.status(500).json({ success: false });
       }
 
@@ -119,9 +123,8 @@ router.post("/create", (req, res) => {
     function (err) {
 
       if (err) {
-        return res.status(500).json({
-          success: false
-        });
+        console.log(err);
+        return res.status(500).json({ success: false });
       }
 
       res.json({
@@ -148,6 +151,7 @@ router.get("/:offer_id", (req, res) => {
     (err, row) => {
 
       if (err) {
+        console.log(err);
         return res.status(500).json({ success: false });
       }
 
@@ -178,24 +182,14 @@ router.post(
 
     const { offer_id } = req.params;
 
-    const joining = JSON.parse(req.body.joiningDetails);
+    const joining = JSON.parse(req.body.joiningDetails || "{}");
+    const signature = req.body.signature || null;
 
-    const signature = req.body.signature;
-
-    const aadhaar =
-      req.files["aadhaar"]?.[0]?.filename || null;
-
-    const pan =
-      req.files["pan"]?.[0]?.filename || null;
-
-    const bank_proof =
-      req.files["bank_proof"]?.[0]?.filename || null;
-
-    const photo =
-      req.files["photo"]?.[0]?.filename || null;
-
-    const signed_appointment =
-      req.files["signedAppointment"]?.[0]?.filename || null;
+    const aadhaar = req.files?.aadhaar?.[0]?.filename || null;
+    const pan = req.files?.pan?.[0]?.filename || null;
+    const bank_proof = req.files?.bank_proof?.[0]?.filename || null;
+    const photo = req.files?.photo?.[0]?.filename || null;
+    const signed_appointment = req.files?.signedAppointment?.[0]?.filename || null;
 
     const sql = `
     UPDATE onboarding SET
@@ -254,14 +248,12 @@ router.post(
 
         if (err) {
           console.log(err);
-          return res.status(500).json({
-            success: false
-          });
+          return res.status(500).json({ success: false });
         }
 
         res.json({
           success: true,
-          message: "Onboarding submitted"
+          message: "Onboarding submitted successfully"
         });
 
       }

@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const sqlite3 = require("sqlite3").verbose();
+const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -13,8 +14,17 @@ app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// ==============================
+// Upload Folder Setup
+// ==============================
+const uploadDir = path.join(__dirname, "uploads");
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
 // serve uploaded files
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(uploadDir));
 
 // ==============================
 // Database Connection
@@ -23,7 +33,7 @@ const dbPath = path.join(__dirname, "hr.db");
 
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
-    console.error("Database connection error:", err.message);
+    console.error("❌ Database connection error:", err.message);
   } else {
     console.log("✅ Connected to SQLite database");
   }
@@ -92,6 +102,13 @@ app.use("/api/offers", offersRoutes);
 // ==============================
 app.get("/", (req, res) => {
   res.send("HR Onboarding Backend Running 🚀");
+});
+
+// ==============================
+// Health Check
+// ==============================
+app.get("/health", (req, res) => {
+  res.json({ status: "OK" });
 });
 
 // ==============================
