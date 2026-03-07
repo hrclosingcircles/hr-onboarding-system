@@ -1,118 +1,243 @@
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 const sqlite3 = require("sqlite3").verbose();
+const multer = require("multer");
+const path = require("path");
 const fs = require("fs");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ==============================
-// Middleware
-// ==============================
 app.use(cors());
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-// ==============================
-// Upload Folder Setup
-// ==============================
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ================= DATABASE =================
+
+const db = new sqlite3.Database("./hr.db", (err) => {
+  if (err) console.log(err);
+  else console.log("Database connected");
+});
+
+// ================= UPLOAD FOLDER =================
+
 const uploadDir = path.join(__dirname, "uploads");
 
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
-// serve uploaded files
 app.use("/uploads", express.static(uploadDir));
 
-// ==============================
-// Database Connection
-// ==============================
-const dbPath = path.join(__dirname, "hr.db");
+// ================= MULTER =================
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error("❌ Database connection error:", err.message);
-  } else {
-    console.log("✅ Connected to SQLite database");
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
   }
 });
 
-// ==============================
-// Create Table + Columns
-// ==============================
-db.serialize(() => {
+const upload = multer({ storage });
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS onboarding (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      offer_id TEXT UNIQUE,
-      candidate_name TEXT,
-      designation TEXT,
-      salary TEXT,
-      work_location TEXT,
-      date_of_joining TEXT,
-      employment_type TEXT,
-      email TEXT,
-      mobile TEXT,
-      status TEXT DEFAULT 'Pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
 
-  const columns = [
-    "father_name TEXT",
-    "dob TEXT",
-    "gender TEXT",
-    "address TEXT",
-    "city TEXT",
-    "state TEXT",
-    "pincode TEXT",
-    "bank_name TEXT",
-    "account_number TEXT",
-    "ifsc TEXT",
-    "emergency_name TEXT",
-    "emergency_contact TEXT",
-    "qualification TEXT",
-    "university TEXT",
-    "passing_year TEXT",
-    "signature TEXT",
-    "aadhaar TEXT",
-    "pan TEXT",
-    "bank_proof TEXT",
-    "photo TEXT",
-    "signed_appointment TEXT"
-  ];
+// =======================================================
+// ================= GET ALL EMPLOYEES ===================
+// =======================================================
 
-  columns.forEach(col => {
-    db.run(`ALTER TABLE onboarding ADD COLUMN ${col}`, err => {});
+app.get("/api/offers", (req, res) => {
+
+  db.all("SELECT * FROM onboarding ORDER BY id DESC", [], (err, rows) => {
+
+    if (err) return res.status(500).json({ success:false });
+
+    res.json({
+      success:true,
+      data:rows
+    });
+
   });
 
 });
 
-// ==============================
-// Routes
-// ==============================
-const offersRoutes = require("./routes/offers");
-app.use("/api/offers", offersRoutes);
 
-// ==============================
-// Root Route
-// ==============================
-app.get("/", (req, res) => {
-  res.send("HR Onboarding Backend Running 🚀");
+// =======================================================
+// =============== DOWNLOAD OFFER LETTER =================
+// =======================================================
+
+app.get("/api/offers/:id/offer-letter", (req, res) => {
+
+  const id = req.params.id;
+
+  db.get(
+    "SELECT * FROM onboarding WHERE id = ?",
+    [id],
+    (err,row)=>{
+
+      if(err || !row){
+        return res.status(404).send("Offer not found");
+      }
+
+      const content = `
+OFFER LETTER
+
+Name: ${row.candidate_name}
+
+Designation: ${row.designation}
+
+Salary: ${row.salary}
+
+Location: ${row.work_location}
+
+Joining Date: ${row.date_of_joining}
+
+Welcome to Closing Circles.
+`;
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=offer_${row.id}.txt`
+      );
+
+      res.send(content);
+
+    }
+  );
+
 });
 
-// ==============================
-// Health Check
-// ==============================
-app.get("/health", (req, res) => {
-  res.json({ status: "OK" });
+
+// =======================================================
+// ================= DELETE EMPLOYEE =====================
+// =======================================================
+
+app.delete("/api/offers/:id", (req,res)=>{
+
+  const id = req.params.id;
+
+  db.run(
+    "DELETE FROM onboarding WHERE id=?",
+    [id],
+    function(err){
+
+      if(err){
+        return res.status(500).json({success:false});
+      }
+
+      res.json({
+        success:true,
+        message:"Employee deleted"
+      });
+
+    }
+  );
+
 });
 
-// ==============================
-// Start Server
-// ==============================
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+
+// =======================================================
+// ================= CREATE OFFER ========================
+// =======================================================
+
+app.post("/api/offers/create", (req,res)=>{
+
+  const {
+    candidate_name,
+    email,
+    mobile,
+    designation,
+    salary,
+    work_location,
+    date_of_joining
+  } = req.body;
+
+  const offer_id =
+    "OFF-" + Math.random().toString(36).substring(2,8).toUpperCase();
+
+  const sql = `
+  INSERT INTO onboarding
+  (
+  offer_id,
+  candidate_name,
+  email,
+  mobile,
+  designation,
+  salary,
+  work_location,
+  date_of_joining,
+  status
+  )
+  VALUES (?,?,?,?,?,?,?,?,?)
+  `;
+
+  db.run(
+    sql,
+    [
+      offer_id,
+      candidate_name,
+      email,
+      mobile,
+      designation,
+      salary,
+      work_location,
+      date_of_joining,
+      "Pending"
+    ],
+    function(err){
+
+      if(err){
+        return res.status(500).json({success:false});
+      }
+
+      const link =
+        `https://hr-frontend-bay.vercel.app/onboarding/${offer_id}`;
+
+      res.json({
+        success:true,
+        onboarding_link:link
+      });
+
+    }
+  );
+
+});
+
+
+// =======================================================
+// ================= GET SINGLE OFFER ====================
+// =======================================================
+
+app.get("/api/offers/:offer_id", (req,res)=>{
+
+  const offer_id = req.params.offer_id;
+
+  db.get(
+    "SELECT * FROM onboarding WHERE offer_id=?",
+    [offer_id],
+    (err,row)=>{
+
+      if(!row){
+        return res.status(404).json({success:false});
+      }
+
+      res.json(row);
+
+    }
+  );
+
+});
+
+
+// =======================================================
+// ================= START SERVER ========================
+// =======================================================
+
+app.get("/", (req,res)=>{
+  res.send("HR Backend Running");
+});
+
+app.listen(PORT, ()=>{
+  console.log("Server running on port",PORT);
 });
