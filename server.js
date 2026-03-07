@@ -15,7 +15,7 @@ app.use(express.urlencoded({ extended: true }));
 // ================= DATABASE =================
 
 const db = new sqlite3.Database("./hr.db", (err) => {
-  if (err) console.log("DB Error:", err);
+  if (err) console.log(err);
   else console.log("SQLite Connected");
 });
 
@@ -39,10 +39,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-
-// =====================================================
-// ================= GET ALL EMPLOYEES =================
-// =====================================================
+// =================================================
+// ================= GET ALL OFFERS =================
+// =================================================
 
 app.get("/api/offers", (req, res) => {
 
@@ -66,10 +65,9 @@ app.get("/api/offers", (req, res) => {
 
 });
 
-
-// =====================================================
-// ================= CREATE OFFER ======================
-// =====================================================
+// =================================================
+// ================= CREATE OFFER ===================
+// =================================================
 
 app.post("/api/offers/create", (req, res) => {
 
@@ -91,12 +89,12 @@ app.post("/api/offers/create", (req, res) => {
   (
   offer_id,
   candidate_name,
-  email,
-  mobile,
   designation,
   salary,
   work_location,
   date_of_joining,
+  email,
+  mobile,
   status
   )
   VALUES (?,?,?,?,?,?,?,?,?)
@@ -107,12 +105,12 @@ app.post("/api/offers/create", (req, res) => {
     [
       offer_id,
       candidate_name,
-      email,
-      mobile,
       designation,
       salary,
       work_location,
       date_of_joining,
+      email,
+      mobile,
       "Pending"
     ],
     function (err) {
@@ -122,12 +120,12 @@ app.post("/api/offers/create", (req, res) => {
         return res.status(500).json({ success: false });
       }
 
-      const onboarding_link =
+      const link =
         `https://hr-frontend-bay.vercel.app/onboarding/${offer_id}`;
 
       res.json({
         success: true,
-        onboarding_link
+        onboarding_link: link
       });
 
     }
@@ -135,10 +133,9 @@ app.post("/api/offers/create", (req, res) => {
 
 });
 
-
-// =====================================================
-// ================= GET SINGLE OFFER ==================
-// =====================================================
+// =================================================
+// ============ GET OFFER FOR ONBOARDING ============
+// =================================================
 
 app.get("/api/offers/:offer_id", (req, res) => {
 
@@ -160,140 +157,163 @@ app.get("/api/offers/:offer_id", (req, res) => {
 
 });
 
-
-// =====================================================
-// ================= SUBMIT ONBOARDING =================
-// =====================================================
+// =================================================
+// ================= SUBMIT ONBOARDING ==============
+// =================================================
 
 app.post(
-  "/api/offers/:offer_id/submit",
-  upload.fields([
-    { name: "aadhaar" },
-    { name: "pan" },
-    { name: "bank_proof" },
-    { name: "photo" },
-    { name: "signedAppointment" }
-  ]),
-  (req, res) => {
+"/api/offers/:offer_id/submit",
+upload.fields([
+{ name:"aadhaar" },
+{ name:"pan" },
+{ name:"bank_proof" },
+{ name:"photo" },
+{ name:"signedAppointment" }
+]),
+(req,res)=>{
 
-    try {
+try{
 
-      const offer_id = req.params.offer_id;
+const offer_id=req.params.offer_id;
 
-      const aadhaar =
-        req.files?.aadhaar?.[0]?.filename || null;
+// parse joining details
+let joining={};
 
-      const pan =
-        req.files?.pan?.[0]?.filename || null;
+if(req.body.joiningDetails){
+joining=JSON.parse(req.body.joiningDetails);
+}
 
-      const bank_proof =
-        req.files?.bank_proof?.[0]?.filename || null;
+// files
+const aadhaar=req.files?.aadhaar?.[0]?.filename || null;
+const pan=req.files?.pan?.[0]?.filename || null;
+const bank_proof=req.files?.bank_proof?.[0]?.filename || null;
+const photo=req.files?.photo?.[0]?.filename || null;
+const signed_appointment=req.files?.signedAppointment?.[0]?.filename || null;
 
-      const photo =
-        req.files?.photo?.[0]?.filename || null;
+const signature=req.body.signature || null;
 
-      const signed_appointment =
-        req.files?.signedAppointment?.[0]?.filename || null;
+const sql=`
+UPDATE onboarding SET
+father_name=?,
+dob=?,
+gender=?,
+address=?,
+city=?,
+state=?,
+pincode=?,
+bank_name=?,
+account_number=?,
+ifsc=?,
+emergency_name=?,
+emergency_contact=?,
+qualification=?,
+university=?,
+passing_year=?,
+signature=?,
+aadhaar=?,
+pan=?,
+bank_proof=?,
+photo=?,
+signed_appointment=?,
+status='Completed'
+WHERE offer_id=?
+`;
 
-      const sql = `
-      UPDATE onboarding
-      SET
-      aadhaar=?,
-      pan=?,
-      bank_proof=?,
-      photo=?,
-      signed_appointment=?,
-      status='Completed'
-      WHERE offer_id=?
-      `;
+db.run(
+sql,
+[
+joining.father_name || null,
+joining.dob || null,
+joining.gender || null,
+joining.address || null,
+joining.city || null,
+joining.state || null,
+joining.pincode || null,
+joining.bank_name || null,
+joining.account_number || null,
+joining.ifsc || null,
+joining.emergency_name || null,
+joining.emergency_contact || null,
+joining.qualification || null,
+joining.university || null,
+joining.passing_year || null,
+signature,
+aadhaar,
+pan,
+bank_proof,
+photo,
+signed_appointment,
+offer_id
+],
+function(err){
 
-      db.run(
-        sql,
-        [
-          aadhaar,
-          pan,
-          bank_proof,
-          photo,
-          signed_appointment,
-          offer_id
-        ],
-        function (err) {
+if(err){
+console.log(err);
+return res.status(500).json({ success:false });
+}
 
-          if (err) {
-            console.log(err);
-            return res.status(500).json({ success: false });
-          }
-
-          res.json({
-            success: true,
-            message: "Onboarding submitted"
-          });
-
-        }
-      );
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-        success: false,
-        message: "Submission failed"
-      });
-
-    }
-
-  }
-);
-
-
-// =====================================================
-// ================= DELETE EMPLOYEE ===================
-// =====================================================
-
-app.delete("/api/offers/:id", (req, res) => {
-
-  const id = req.params.id;
-
-  db.run(
-    "DELETE FROM onboarding WHERE id=?",
-    [id],
-    function (err) {
-
-      if (err) {
-        console.log(err);
-        return res.status(500).json({ success: false });
-      }
-
-      res.json({
-        success: true,
-        message: "Employee deleted"
-      });
-
-    }
-  );
+res.json({
+success:true,
+message:"Onboarding submitted"
+});
 
 });
 
+}catch(error){
 
-// =====================================================
-// ================= OFFER LETTER DOWNLOAD =============
-// =====================================================
+console.log(error);
 
-app.get("/api/offers/:id/offer-letter", (req, res) => {
+res.status(500).json({
+success:false
+});
 
-  const id = req.params.id;
+}
 
-  db.get(
-    "SELECT * FROM onboarding WHERE id=?",
-    [id],
-    (err, row) => {
+});
 
-      if (err || !row) {
-        return res.send("Offer not found");
-      }
+// =================================================
+// ================= DELETE EMPLOYEE ================
+// =================================================
 
-      const text = `
+app.delete("/api/offers/:id", (req,res)=>{
+
+const id=req.params.id;
+
+db.run(
+"DELETE FROM onboarding WHERE id=?",
+[id],
+function(err){
+
+if(err){
+return res.status(500).json({success:false});
+}
+
+res.json({
+success:true
+});
+
+});
+
+});
+
+// =================================================
+// ================= OFFER LETTER ===================
+// =================================================
+
+app.get("/api/offers/:id/offer-letter",(req,res)=>{
+
+const id=req.params.id;
+
+db.get(
+"SELECT * FROM onboarding WHERE id=?",
+[id],
+(err,row)=>{
+
+if(!row){
+return res.send("Offer not found");
+}
+
+const text=`
 OFFER LETTER
 
 Name: ${row.candidate_name}
@@ -305,32 +325,29 @@ Joining Date: ${row.date_of_joining}
 Welcome to Closing Circles.
 `;
 
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename=offer_${row.id}.txt`
-      );
+res.setHeader(
+"Content-Disposition",
+`attachment; filename=offer_${row.id}.txt`
+);
 
-      res.send(text);
-
-    }
-  );
+res.send(text);
 
 });
 
-
-// =====================================================
-// ================= ROOT ==============================
-// =====================================================
-
-app.get("/", (req, res) => {
-  res.send("HR Onboarding Backend Running");
 });
 
+// =================================================
+// ================= ROOT ===========================
+// =================================================
 
-// =====================================================
-// ================= START SERVER ======================
-// =====================================================
+app.get("/",(req,res)=>{
+res.send("HR Onboarding Backend Running");
+});
 
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+// =================================================
+// ================= SERVER =========================
+// =================================================
+
+app.listen(PORT,()=>{
+console.log("Server running on port",PORT);
 });
